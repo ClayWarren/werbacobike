@@ -1,60 +1,192 @@
-// Scene, camera, renderer, and physics world setup
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-const world = new CANNON.World();
-world.gravity.set(0, -9.82, 0);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motorbike Race</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: black;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Load Three.js and Cannon.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script>
+        // Scene Setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-// Define the Motorbike class
-class Motorbike {
-    constructor(scene, world) {
-        this.scene = scene;
-        this.world = world;
-        this.chassisMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 2), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
-        this.scene.add(this.chassisMesh);
-        this.chassisBody = new CANNON.Body({ mass: 1 });
-        this.chassisBody.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.25, 1)));
-        this.world.addBody(this.chassisBody);
-    }
-    update() {
-        this.chassisMesh.position.copy(this.chassisBody.position);
-        this.chassisMesh.quaternion.copy(this.chassisBody.quaternion);
-    }
-    applyControls(keys) {
-        const force = new CANNON.Vec3();
-        if (keys.ArrowUp) force.z = -10;
-        if (keys.ArrowDown) force.z = 10;
-        if (keys.ArrowLeft) this.chassisBody.angularVelocity.y = 1;
-        if (keys.ArrowRight) this.chassisBody.angularVelocity.y = -1;
-        this.chassisBody.applyLocalForce(force, new CANNON.Vec3(0, 0, 0));
-    }
-}
+        // Physics World Setup
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0); // Gravity in negative y-direction
 
-// Instantiate the motorbike
-const motorbike = new Motorbike(scene, world);
+        // Ground Plane
+        // Physics
+        const groundShape = new CANNON.Plane();
+        const groundBody = new CANNON.Body({ mass: 0 }); // Static body
+        groundBody.addShape(groundShape);
+        groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // Rotate to lie flat
+        world.addBody(groundBody);
 
-// Set up keyboard event listeners
-const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-document.addEventListener('keydown', (event) => { if (event.key in keys) keys[event.key] = true; });
-document.addEventListener('keyup', (event) => { if (event.key in keys) keys[event.key] = false; });
+        // Visual
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+        const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+        groundMesh.rotation.x = -Math.PI / 2;
+        scene.add(groundMesh);
 
-// Animation loop
-function animate() {
-    requestAnimationFrame(animate);
-    world.step(1 / 60);
+        // Motorbike Setup
+        // Chassis mesh (body)
+        const chassisGeometry = new THREE.BoxGeometry(2, 1, 4); // Width, height, length
+        const chassisMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 }); // Red color
+        const chassisMesh = new THREE.Mesh(chassisGeometry, chassisMaterial);
+        scene.add(chassisMesh);
 
-    // Update motorbike and camera
-    motorbike.applyControls(keys);
-    motorbike.update();
-    const offset = new THREE.Vector3(0, 2, 5);
-    const motorbikePosition = motorbike.chassisMesh.position;
-    const motorbikeQuaternion = motorbike.chassisMesh.quaternion;
-    const cameraPosition = motorbikePosition.clone().add(offset.applyQuaternion(motorbikeQuaternion));
-    camera.position.copy(cameraPosition);
-    camera.lookAt(motorbikePosition);
+        // Chassis physics body
+        const chassisShape = new CANNON.Box(new CANNON.Vec3(1, 0.5, 2)); // Half extents
+        const chassisBody = new CANNON.Body({ mass: 150 }); // Dynamic body with mass
+        chassisBody.addShape(chassisShape);
+        chassisBody.position.set(0, 5, 0); // Start above ground
+        world.addBody(chassisBody);
 
-    renderer.render(scene, camera);
-}
-animate();
+        // RaycastVehicle for motorbike
+        const vehicle = new CANNON.RaycastVehicle({
+            chassisBody: chassisBody,
+        });
+
+        // Wheel configuration (shared properties)
+        const wheelOptions = {
+            radius: 0.5,
+            directionLocal: new CANNON.Vec3(0, -1, 0), // Downward direction
+            suspensionStiffness: 30,
+            suspensionRestLength: 0.3,
+            frictionSlip: 5,
+            dampingRelaxation: 2.3,
+            dampingCompression: 4.4,
+            maxSuspensionForce: 100000,
+            rollInfluence: 0.01,
+            axleLocal: new CANNON.Vec3(1, 0, 0), // Axle along x-axis
+            chassisConnectionPointLocal: new CANNON.Vec3(0, 0, 1), // Front wheel position
+            maxSuspensionTravel: 0.3,
+            customSlidingRotationalSpeed: -30,
+            useCustomSlidingRotationalSpeed: true,
+        };
+
+        // Add front wheel
+        vehicle.addWheel(wheelOptions);
+
+        // Add rear wheel
+        wheelOptions.chassisConnectionPointLocal.set(0, 0, -1); // Rear wheel position
+        vehicle.addWheel(wheelOptions);
+
+        // Add vehicle to physics world
+        vehicle.addToWorld(world);
+
+        // Wheel meshes
+        const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 32); // Radius top, radius bottom, height
+        const wheelMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 }); // Black color
+        const wheelMeshes = [];
+        vehicle.wheelInfos.forEach(() => {
+            const wheelMesh = new THREE.Mesh(wheelGeometry, wheelMaterial);
+            wheelMesh.rotation.z = Math.PI / 2; // Align with axle
+            scene.add(wheelMesh);
+            wheelMeshes.push(wheelMesh);
+        });
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040); // Soft ambient light
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // White directional light
+        directionalLight.position.set(10, 20, 10); // Positioned above and to the side
+        scene.add(directionalLight);
+
+        // Controls
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+        };
+
+        // Event listeners for keyboard input
+        document.addEventListener('keydown', (event) => {
+            if (event.key in keys) keys[event.key] = true;
+        });
+        document.addEventListener('keyup', (event) => {
+            if (event.key in keys) keys[event.key] = false;
+        });
+
+        // Update vehicle based on input
+        function updateVehicle() {
+            let engineForce = 0;
+            let steering = 0;
+
+            if (keys.ArrowUp) engineForce = 100; // Accelerate forward
+            else if (keys.ArrowDown) engineForce = -50; // Reverse (half force)
+
+            if (keys.ArrowLeft) steering = 0.5; // Steer left
+            else if (keys.ArrowRight) steering = -0.5; // Steer right
+
+            vehicle.applyEngineForce(engineForce, 1); // Apply force to rear wheel (index 1)
+            vehicle.setSteeringValue(steering, 0); // Steer front wheel (index 0)
+        }
+
+        // Camera Following
+        function updateCamera() {
+            const offset = new THREE.Vector3(0, 2, 5); // Position behind and above the motorbike
+            const motorbikePosition = chassisMesh.position;
+            const motorbikeQuaternion = chassisMesh.quaternion;
+            const cameraPosition = motorbikePosition.clone().add(offset.applyQuaternion(motorbikeQuaternion));
+            camera.position.copy(cameraPosition);
+            camera.lookAt(motorbikePosition);
+        }
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Step the physics world
+            world.step(1 / 60); // Fixed time step of 60 FPS
+
+            // Update game state
+            updateVehicle();
+
+            // Sync chassis mesh with physics body
+            chassisMesh.position.copy(chassisBody.position);
+            chassisMesh.quaternion.copy(chassisBody.quaternion);
+
+            // Sync wheel meshes with physics simulation
+            vehicle.wheelInfos.forEach((wheel, index) => {
+                const transform = wheel.worldTransform;
+                wheelMeshes[index].position.copy(transform.position);
+                wheelMeshes[index].quaternion.copy(transform.quaternion);
+            });
+
+            // Update camera to follow the motorbike
+            updateCamera();
+
+            // Render the scene
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Window Resize Handling
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
