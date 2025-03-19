@@ -1,227 +1,111 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bike Racing Game</title>
     <style>
-        canvas {
-            border: 1px solid black;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-color: #333;
-            color: white;
-        }
-        .score {
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-        .restart-btn {
-            padding: 10px 20px;
-            font-size: 18px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
+        /* Add your styles here */
     </style>
 </head>
 <body>
-    <div class="score">Score: <span id="score">0</span></div>
-    <button class="restart-btn" onclick="restartGame()">Restart Game</button>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        // Initialize game state on window load
+        function init() {
+            // Reset all game states
 
-<script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const scoreElement = document.getElementById('score');
+            // Clear previous particles
+            const particles = document.querySelectorAll('.particles');
+            particles.forEach(particle => {
+                particle.remove();
+            });
 
-// Game variables
-let playerBike = {
-    x: 50,
-    y: canvas.height / 2,
-    width: 60,
-    height: 40,
-    speed: 2,
-    acceleration: 0.5,
-    angle: 0,
-    movingRight: true,
-    brake: false
-};
+            // Reset camera position
+            camera.position = [0, 10, 5];
 
-let opponentBike = {
-    x: canvas.width - 130,
-    y: canvas.height / 2,
-    width: 60,
-    height: 40,
-    speed: 2,
-    acceleration: 0.5,
-    angle: 0,
-    movingRight: Math.random() > 0.5
-};
-
-let score = 0;
-const trafficLight = {
-    x: canvas.width / 2,
-    width: 100,
-    randomColor(): new Color(Math.random(), Math.random(), Math.random())
-}
-
-function randomColor() {
-    return new HTMLColorSpaces rand()
-}
-
-function rand() {
-    var r, a, b;
-    do { r = Math.random(); } while (r < 0.4);
-    return `${r}px rgb(${(a=360*(1 + r * (-2/3 + 1/1.8))).toString(15).substr(2,7)}, ${(b=360*(1 + r * (-2/3 + 1/1.8*2))).toString(15).substr(2,7)},{(a=360*(1 + r * (-2/3 + 1/1.8*2))).toString(15).substr(2,7)})`;
-}
-
-function drawRoad() {
-    ctx.fillStyle = '#666';
-    ctx.fillRect(playerBike.x - 40, 0, canvas.width, playerBike.height);
-
-    // Opponent's bike is in the middle
-    ctx.fillStyle = opponentBike.randomColor();
-    ctx.fillRect(opponentBike.x - 20, 0, 50, canvas.height);
-
-    // Traffic lights
-    ctx.fillStyle = 'yellow';
-    ctx.fillRect(trafficLight.x, 15, trafficLight.width, 30);
-    ctx.fillStyle = 'red';
-    ctx.fillRect(trafficLight.x, 45, trafficLight.width, 30);
-}
-
-function drawBike(bike) {
-    ctx.save();
-    ctx.translate(bike.x, bike.y);
-    ctx.rotate(bike.angle);
-
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(0, 0, bike.height / 2.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Helmets
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.beginPath();
-    ctx.arc(-30, -40, bike.height / 6, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Tyres
-    ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-    ctx.beginPath();
-    ctx.arc(bike.width / 3.8, -40, bike.height / 6, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-}
-
-function checkCollision() {
-    return (playerBike.x - playerBike.width/2 > opponentBike.x &&
-        playerBike.x + playerBike.width/2 < opponentBike.x + opponentBike.width) &&
-        (playerBike.y - playerBike.height/2 > opponentBike.y +
-            opponentBike.height) && (playerBike.y + playerBike.height/2 <
-                opponentBike.y - opponentBike.height);
-}
-
-function update() {
-    if (checkCollision()) {
-        gameOver();
-        return;
-    }
-
-    // Opponent's movement
-    if (!opponentBike.movingRight && Math.random() > 0.45) {
-        opponentBike.movingRight = true;
-    }
-    if (opponentBike.movingRight && Math.random() < 0.25)
-        opponentBike.speed += 0.3;
-
-    if (!opponentBike.movingRight) {
-        opponentBike.movingRight = false;
-    }
-
-    // Player's movement
-    const keys = /[左右arrow]/.test(navigator.userAgent);
-    playerBike.movingRight = (keys || Math.random() > 0.5);
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    drawRoad();
-
-    if(playerBike.movingRight){
-        playerBike.x += playerBike.speed;
-        score++;
-        opponentBike.x -= 2;
-
-        if (playerBike.x > canvas.width - playerBike.width)
-            playerBike.x = canvas.width - playerBike.width;
-
-        if(opponentBike.x < 0 + opponentBike.width) {
-            opponentBike.x += 2;
+            // Create new particles
+            createParticles();
         }
 
-        drawBike(playerBike);
-        drawBike(opponentBike);
+        // Game loop function
+        function gameLoop() {
+            // Clear previous frame
+            const lastFrame = requestAnimationFrame(gameLoop);
 
-    } else {
-        playerBike.x -= playerBike.speed;
-    }
-}
+            // Update and draw your game elements here
 
-function restartGame() {
-    playerBike = {
-        x: 50,
-        y: canvas.height / 2,
-        width: 60,
-        height: 80,
-        speed: 1.3 + Math.random(),
-        acceleration: (Math.pow(1.3, 2)) * (2 - Math.abs(Math.random() * 2)),
-        angle: Math.atan2(
-            (Math.random() - 0.5) * 4,
-            Math.random() * 6
-        ),
-        movingRight: Math.random() > 0.5,
-    };
+            return requestAnimationFrame(gameLoop);
+        }
 
-    opponentBike = {
-        x: canvas.width / 2 + opponentBike.width/1.75,
-        y: 0 - (Math.random().toString(36).substr(2, 9)),
-        angle: (Math.random() * Math.PI) % (Math.PI),
-        randomColor(): new Color(Math.random(), Math.random(), Math.random())
-    };
+        // Cleanup function called on window close
+        function cleanup() {
+            try {
+                init();
+                gameLoopIndex = requestAnimationFrame(gameLoop);
+            } catch (error) {
+                console.error('Error initializing game:', error);
+            }
+        }
 
-    score = 0;
-}
+        // Handle restart button click
+        document.addEventListener('click', (e) => {
+            if (gameLoopIndex === 0) {
+                // Ensure the current frame is properly closed before starting a new one
+                if (gameLoopIndex >= 0) {
+                    clearInterval(gameLoopIndex);
+                }
 
-function gameOver() {
-    alert(`Game Over! Score: ${score}`);
-    update();
-}
+                gameLoopIndex = requestAnimationFrame(gameLoop);
+            } else if (gameLoopIndex !== 0) {
+                // Stop any ongoing loop and start a new one
+                if (gameLoopIndex >= 0) {
+                    clearInterval(gameLoopIndex);
+                }
+                gameLoopIndex = requestAnimationFrame(gameLoop);
+            }
+        });
 
-update();
-animate();
+        // Handle key press events to control the game loop
+        document.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case ' ':
+                    if (gameLoopIndex === 0) {
+                        init();
+                        gameLoopIndex = requestAnimationFrame(gameLoop);
+                    } else if (gameLoopIndex !== 0) {
+                        clearInterval(gameLoopIndex);
+                        gameLoopIndex = 0;
+                        gameLoopIndex = requestAnimationFrame(gameLoop);
+                    }
+            }
+        });
 
-function animate() {
-    update();
-    requestAnimationFrame(animate);
-}
+        // Add any additional event listeners as needed
 
-// Start the game
-alert('Start your car, avoid red traffic lights and catch yellow ones!');
-animate();
-</think>
+        // Initial setup
+        init();
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Game</title>
-</head>
-<body>
-    <script src="game.js"></script>
+        function createParticles() {
+            const particles = document.createElement('div');
+            particles.className = 'particles';
+
+            for (let i = 0; i < 100; i++) {
+                const part = document.createElement('div');
+                part.style.position = 'absolute';
+                part.style.width = Math.random() * 3 + 2;
+                part.style.height = part.style.width;
+                part.style.backgroundColor = `hsl(${Math.random() * 360}deg, 50%, 50%)`;
+
+                const position = document.createElement('div');
+                position.style.position = 'absolute';
+                position.style.left = Math.random() * window.innerWidth + 'px';
+                position.style.top = Math.random() * window.innerHeight + 'px';
+
+                part.innerHTML = position;
+                particles.appendChild(part);
+            }
+
+            document.body.appendChild(particles);
+        }
+
+        // Add any additional function calls or event listeners here
+    </script>
 </body>
 </html>
